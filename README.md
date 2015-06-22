@@ -1,4 +1,4 @@
-# catalog_app
+# catalog_jewelry_app
 udacity full stack nanodegree project 3 completed by Xiang Zhao Mirko
 05/23/2015
 
