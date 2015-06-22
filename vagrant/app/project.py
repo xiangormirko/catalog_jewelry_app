@@ -37,6 +37,7 @@ def showLogin():
     # return "The current session state is %s" % login_session['state']
     return render_template('login.html', STATE=state)
 
+
 # Log in with facebook oauth
 @app.route('/fbconnect', methods=['POST'])
 def fbconnect():
@@ -104,6 +105,7 @@ def fbconnect():
     flash("Now logged in as %s" % login_session['username'])
     return output
 
+
 # revoke authorization from facebook
 @app.route('/fbdisconnect')
 def fbdisconnect():
@@ -114,6 +116,7 @@ def fbdisconnect():
     h = httplib2.Http()
     result = h.request(url, 'DELETE')[1]
     return "you have been logged out"
+
 
 # login with google oauth
 @app.route('/gconnect', methods=['POST'])
@@ -209,7 +212,7 @@ def gconnect():
     return output
 
 
-# User Helper Functions 
+# User Helper Functions
 def createUser(login_session):
     newUser = User(name=login_session['username'], email=login_session[
                    'email'], picture=login_session['picture'])
@@ -272,11 +275,13 @@ def collectionItemJSON(collection_id):
         collection_id=collection_id).all()
     return jsonify(CollectionItems=[i.serialize for i in items])
 
+
 # displays information on a specific item by providing both collection and item id
 @app.route('/collection/<int:collection_id>/items/<int:item_id>/JSON')
 def ItemJSON(collection_id, item_id):
     Collection_Item = session.query(CollectionItem).filter_by(id=item_id).one()
     return jsonify(Collection_Item=Collection_Item.serialize)
+
 
 # displays all collections
 @app.route('/collection/JSON')
