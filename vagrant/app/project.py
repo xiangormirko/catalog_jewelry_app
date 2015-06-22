@@ -28,12 +28,6 @@ DBSession = sessionmaker(bind=engine)
 session = DBSession()
 
 
-# A better looking home page
-@app.route('/homepage')
-def homePage():
-    return render_template('home.html')
-
-
 # Create anti-forgery state token
 @app.route('/login')
 def showLogin():
@@ -43,7 +37,7 @@ def showLogin():
     # return "The current session state is %s" % login_session['state']
     return render_template('login.html', STATE=state)
 
-
+# Log in with facebook oauth
 @app.route('/fbconnect', methods=['POST'])
 def fbconnect():
     if request.args.get('state') != login_session['state']:
@@ -110,7 +104,7 @@ def fbconnect():
     flash("Now logged in as %s" % login_session['username'])
     return output
 
-
+# revoke authorization from facebook
 @app.route('/fbdisconnect')
 def fbdisconnect():
     facebook_id = login_session['facebook_id']
@@ -121,7 +115,7 @@ def fbdisconnect():
     result = h.request(url, 'DELETE')[1]
     return "you have been logged out"
 
-
+# login with google oauth
 @app.route('/gconnect', methods=['POST'])
 def gconnect():
     # Validate state token
@@ -215,9 +209,7 @@ def gconnect():
     return output
 
 
-# User Helper Functions
-
-
+# User Helper Functions 
 def createUser(login_session):
     newUser = User(name=login_session['username'], email=login_session[
                    'email'], picture=login_session['picture'])
@@ -270,7 +262,9 @@ def gdisconnect():
         return response
 
 
-# JSON APIs to view Restaurant Information
+# JSON APIs to view Collection Information
+
+# displays items in a collection by providing collection id
 @app.route('/collection/<int:collection_id>/items/JSON')
 def collectionItemJSON(collection_id):
     collection = session.query(Collection).filter_by(id=collection_id).one()
@@ -278,20 +272,20 @@ def collectionItemJSON(collection_id):
         collection_id=collection_id).all()
     return jsonify(CollectionItems=[i.serialize for i in items])
 
-
+# displays information on a specific item by providing both collection and item id
 @app.route('/collection/<int:collection_id>/items/<int:item_id>/JSON')
-def menuItemJSON(collection_id, item_id):
+def ItemJSON(collection_id, item_id):
     Collection_Item = session.query(CollectionItem).filter_by(id=item_id).one()
-    return jsonify(Menu_Item=Menu_Item.serialize)
+    return jsonify(Collection_Item=Collection_Item.serialize)
 
-
+# displays all collections
 @app.route('/collection/JSON')
 def collectionsJSON():
     collections = session.query(Collection).all()
     return jsonify(collections=[c.serialize for c in collections])
 
 
-# Show all restaurants
+# Show all collections
 @app.route('/')
 @app.route('/collection/')
 def showCollections():
@@ -301,7 +295,7 @@ def showCollections():
     else:
         return render_template('collections.html', collections=collections)
 
-# Create a new restaurant
+# Create a new collection
 
 
 @app.route('/collection/new/', methods=['GET', 'POST'])
@@ -318,7 +312,7 @@ def newCollection():
     else:
         return render_template('newCollection.html')
 
-# Edit a restaurant
+# Edit a collection
 
 
 @app.route('/collection/<int:collection_id>/edit/', methods=['GET', 'POST'])
@@ -338,7 +332,7 @@ def editCollection(collection_id):
         return render_template('editCollection.html', collection=editedCollection)
 
 
-# Delete a restaurant
+# Delete a collection
 @app.route('/collection/<int:collection_id>/delete/', methods=['GET', 'POST'])
 def deleteCollection(collection_id):
     collectionToDelete = session.query(
@@ -355,9 +349,8 @@ def deleteCollection(collection_id):
     else:
         return render_template('deleteCollection.html', collection=collectionToDelete)
 
-# Show a restaurant menu
 
-
+# Show a collection and the respective items
 @app.route('/collection/<int:collection_id>/')
 @app.route('/collection/<int:collection_id>/items/')
 def showItems(collection_id):
@@ -373,7 +366,7 @@ def showItems(collection_id):
         return render_template('items.html', items=items, collection=collection, creator=creator)
 
 
-# Create a new menu item
+# Create a new collection item
 @app.route('/collection/<int:collection_id>/items/new/', methods=['GET', 'POST'])
 def newCollectionItem(collection_id):
     if 'username' not in login_session:
@@ -391,9 +384,8 @@ def newCollectionItem(collection_id):
     else:
         return render_template('newCollectionItem.html', collection_id=collection_id)
 
-# Edit a menu item
 
-
+# Edit a collection item
 @app.route('/collection/<int:collection_id>/items/<int:item_id>/edit', methods=['GET', 'POST'])
 def editCollectionItem(collection_id, item_id):
     if 'username' not in login_session:
@@ -419,7 +411,7 @@ def editCollectionItem(collection_id, item_id):
         return render_template('editCollectionItem.html', collection_id=collection_id, item_id=item_id, item=editedItem)
 
 
-# Delete a menu item
+# Delete a collection item
 @app.route('/collection/<int:collection_id>/items/<int:item_id>/delete', methods=['GET', 'POST'])
 def deleteCollectionItem(collection_id, item_id):
     if 'username' not in login_session:
