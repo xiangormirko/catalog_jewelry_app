@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, g
 from flask import redirect, jsonify, url_for, flash
 from sqlalchemy import create_engine, asc
 from sqlalchemy.orm import sessionmaker
@@ -12,7 +12,8 @@ import httplib2
 import json
 from flask import make_response
 import requests
-
+from db_helper import getUserID, getUserInfo, createUser
+from functools import wraps
 app = Flask(__name__)
 
 CLIENT_ID = json.loads(
@@ -26,6 +27,15 @@ Base.metadata.bind = engine
 
 DBSession = sessionmaker(bind=engine)
 session = DBSession()
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'username' not in login_session:
+            return redirect('/login')
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 # Create anti-forgery state token
@@ -52,8 +62,7 @@ def fbconnect():
         'web']['app_id']
     app_secret = json.loads(
         open('fb_client_secrets.json', 'r').read())['web']['app_secret']
-    url = 'https://graph.facebook.com/oauth/access_token?grant_type='
-    'fb_exchange_token&client_id=%s&client_secret=%s&fb_exchange_token=%s' % (
+    url = 'https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id=%s&client_secret=%s&fb_exchange_token=%s' % (
         app_id, app_secret, access_token)
     h = httplib2.Http()
     result = h.request(url, 'GET')[1]
@@ -74,8 +83,7 @@ def fbconnect():
     login_session['email'] = data["email"]
     login_session['facebook_id'] = data["id"]
 
-    # The token must be stored in the login_session in order to properly logout
-    # let's strip out the information before the equals sign in our token
+    # The token must be stored in the login_session in order to properly logout, let's strip out the information before the equals sign in our token
     stored_token = token.split("=")[1]
     login_session['access_token'] = stored_token
 
@@ -182,6 +190,7 @@ def gconnect():
     # Store the access token in the session for later use.
     login_session['access_token'] = access_token
     login_session['gplus_id'] = gplus_id
+    login_session['credentials'] = credentials.to_json()
 
     # Get user info
     userinfo_url = "https://www.googleapis.com/oauth2/v1/userinfo"
@@ -211,28 +220,6 @@ def gconnect():
     flash("you are now logged in as %s" % login_session['username'])
     return output
 
-
-# User Helper Functions
-def createUser(login_session):
-    newUser = User(name=login_session['username'], email=login_session[
-                   'email'], picture=login_session['picture'])
-    session.add(newUser)
-    session.commit()
-    user = session.query(User).filter_by(email=login_session['email']).one()
-    return user.id
-
-
-def getUserInfo(user_id):
-    user = session.query(User).filter_by(id=user_id).one()
-    return user
-
-
-def getUserID(email):
-    try:
-        user = session.query(User).filter_by(email=email).one()
-        return user.id
-    except:
-        return None
 
 # DISCONNECT - Revoke a current user's token and reset their login_session
 
@@ -290,6 +277,13 @@ def collectionsJSON():
     return jsonify(collections=[c.serialize for c in collections])
 
 
+# displays all users
+@app.route('/users/JSON')
+def usersJSON():
+    users = session.query(User).all()
+    return jsonify(users=[u.serialize for u in users])
+
+
 # Show all collections
 @app.route('/')
 @app.route('/collection/')
@@ -321,11 +315,9 @@ def newCollection():
 
 
 @app.route('/collection/<int:collection_id>/edit/', methods=['GET', 'POST'])
+@login_required
 def editCollection(collection_id):
-    editedCollection = session.query(
-        Collection).filter_by(id=collection_id).one()
-    if 'username' not in login_session:
-        return redirect('/login')
+    editedCollection = session.query(Collection).filter_by(id=collection_id).one()
     if editedCollection.user_id != login_session['user_id']:
         return "<script>function myFunction() {alert('You are not authorized to edit this collection. Please create your own collection in order to edit.');}</script><body onload='myFunction()''>"
     if request.method == 'POST':
@@ -339,11 +331,9 @@ def editCollection(collection_id):
 
 # Delete a collection
 @app.route('/collection/<int:collection_id>/delete/', methods=['GET', 'POST'])
+@login_required
 def deleteCollection(collection_id):
-    collectionToDelete = session.query(
-        Collection).filter_by(id=collection_id).one()
-    if 'username' not in login_session:
-        return redirect('/login')
+    collectionToDelete = session.query(Collection).filter_by(id=collection_id).one()
     if collectionToDelete.user_id != login_session['user_id']:
         return "<script>function myFunction() {alert('You are not authorized to delete this collection. Please create your own collection in order to delete.');}</script><body onload='myFunction()''>"
     if request.method == 'POST':
@@ -363,8 +353,6 @@ def showItems(collection_id):
     creator = getUserInfo(collection.user_id)
     items = session.query(CollectionItem).filter_by(
         collection_id=collection_id).all()
-    for i in items:
-        print i.category
     if 'username' not in login_session or creator.id != login_session['user_id']:
         return render_template('publicitems.html', items=items, collection=collection, creator=creator)
     else:
@@ -373,9 +361,8 @@ def showItems(collection_id):
 
 # Create a new collection item
 @app.route('/collection/<int:collection_id>/items/new/', methods=['GET', 'POST'])
+@login_required
 def newCollectionItem(collection_id):
-    if 'username' not in login_session:
-        return redirect('/login')
     collection = session.query(Collection).filter_by(id=collection_id).one()
     if login_session['user_id'] != collection.user_id:
         return "<script>function myFunction() {alert('You are not authorized to add items to this collection. Please create your own collection in order to add items.');}</script><body onload='myFunction()''>"
@@ -392,9 +379,8 @@ def newCollectionItem(collection_id):
 
 # Edit a collection item
 @app.route('/collection/<int:collection_id>/items/<int:item_id>/edit', methods=['GET', 'POST'])
+@login_required
 def editCollectionItem(collection_id, item_id):
-    if 'username' not in login_session:
-        return redirect('/login')
     editedItem = session.query(CollectionItem).filter_by(id=item_id).one()
     collection = session.query(Collection).filter_by(id=collection_id).one()
     if login_session['user_id'] != collection.user_id:
@@ -418,9 +404,8 @@ def editCollectionItem(collection_id, item_id):
 
 # Delete a collection item
 @app.route('/collection/<int:collection_id>/items/<int:item_id>/delete', methods=['GET', 'POST'])
+@login_required
 def deleteCollectionItem(collection_id, item_id):
-    if 'username' not in login_session:
-        return redirect('/login')
     collection = session.query(Collection).filter_by(id=collection_id).one()
     itemToDelete = session.query(CollectionItem).filter_by(id=item_id).one()
     if login_session['user_id'] != collection.user_id:

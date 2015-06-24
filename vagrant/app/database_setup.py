@@ -8,6 +8,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import create_engine
 import sqlalchemy_utils
+from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
 
 Base = declarative_base()
@@ -21,6 +22,21 @@ class User(Base):
     email = Column(String(250), nullable=False)
     picture = Column(String(250))
 
+    @property
+    def serialize(self):
+        """Return object data in easily serializeable format"""
+        return {
+            'name': self.name,
+            'id': self.id,
+            'email': self.email,
+            'picture': self.picture,
+        }
+
+    @hybrid_property
+    def getUserInfo(self):
+        userInfo = {'id': self.id, 'name': self.name, 'email': self.email, 'picture': self.picture}
+        return userInfo
+
 
 class Collection(Base):
     __tablename__ = 'collection'
@@ -30,6 +46,7 @@ class Collection(Base):
     user_id = Column(Integer, ForeignKey('user.id'))
     t_pic = Column(String(250))
     user = relationship(User)
+    collection_items = relationship("CollectionItem", cascade="all, delete-orphan")
 
     @property
     def serialize(self):
@@ -54,6 +71,7 @@ class CollectionItem(Base):
     user_id = Column(Integer, ForeignKey('user.id'))
     user = relationship(User)
 
+
     @property
     def serialize(self):
         """Return object data in easily serializeable format"""
@@ -66,10 +84,10 @@ class CollectionItem(Base):
             'picture': self.picture,
         }
 
-#    uncomment the following lines if you wish to recreate the database at file execution
-#    if sqlalchemy_utils.functions.database_exists('sqlite:///ecommerce.db'):
-#    sqlalchemy_utils.functions.drop_database('sqlite:///ecommerce.db')
-#    print "An older database has been dropped"
+# uncomment the following lines if you wish to recreate the database at file execution
+# sqlalchemy_utils.functions.database_exists('sqlite:///ecommerce.db'):
+# sqlalchemy_utils.functions.drop_database('sqlite:///ecommerce.db')
+# print "An older database has been dropped"
 
 engine = create_engine('sqlite:///ecommerce.db')
 
